@@ -25,6 +25,21 @@ import org.apache.amber.core.workflow.PortIdentity
 
 trait OperatorExecutor {
 
+  // Execution context
+  private var _executionId: Option[Int] = None
+  private var _operatorId: Option[String] = None
+
+  protected def executionId: Int =
+    _executionId.getOrElse(throw new IllegalStateException("Execution context not initialized"))
+
+  protected def operatorId: String =
+    _operatorId.getOrElse(throw new IllegalStateException("Execution context not initialized"))
+
+  final def initializeExecutionContext(execId: Int, opId: String): Unit = {
+    _executionId = Some(execId)
+    _operatorId = Some(opId)
+  }
+
   def open(): Unit = {}
 
   def produceStateOnStart(port: Int): Option[State] = None

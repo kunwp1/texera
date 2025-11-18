@@ -190,4 +190,25 @@ class AttributeTypeUtilsSpec extends AnyFunSuite {
     assert(parseField("anything", AttributeType.ANY) == "anything")
   }
 
+  test("parseField correctly parses to BIG_OBJECT") {
+    // Valid S3 URI strings are converted to BigObjectPointer
+    val pointer1 = parseField("s3://bucket/path/to/object", AttributeType.BIG_OBJECT)
+      .asInstanceOf[BigObjectPointer]
+    assert(pointer1.getUri == "s3://bucket/path/to/object")
+    assert(pointer1.getBucketName == "bucket")
+    assert(pointer1.getObjectKey == "path/to/object")
+
+    // Null input returns null
+    assert(parseField(null, AttributeType.BIG_OBJECT) == null)
+  }
+
+  test("BIG_OBJECT type is preserved but never inferred from data") {
+    // BIG_OBJECT remains BIG_OBJECT when passed as typeSoFar
+    assert(inferField(AttributeType.BIG_OBJECT, "any-value") == AttributeType.BIG_OBJECT)
+    assert(inferField(AttributeType.BIG_OBJECT, null) == AttributeType.BIG_OBJECT)
+
+    // String data is inferred as STRING, never BIG_OBJECT
+    assert(inferField("s3://bucket/path") == AttributeType.STRING)
+  }
+
 }
