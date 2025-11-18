@@ -19,7 +19,7 @@
 
 package org.apache.texera.service.util
 
-import org.apache.amber.core.tuple.BigObjectPointer
+import org.apache.amber.core.tuple.BigObject
 import org.apache.texera.dao.MockTexeraDB
 import org.apache.texera.dao.jooq.generated.Tables._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
@@ -95,12 +95,12 @@ class BigObjectManagerSpec
       .execute()
   }
 
-  /** Creates a big object from string data and returns its pointer. */
+  /** Creates a big object from string data and returns it. */
   private def createBigObject(
       data: String,
       execId: Int,
       opId: String = "test-op"
-  ): BigObjectPointer = {
+  ): BigObject = {
     createMockExecution(execId)
     BigObjectManager.create(new ByteArrayInputStream(data.getBytes), execId, opId)
   }
@@ -110,13 +110,13 @@ class BigObjectManagerSpec
     new BigObjectStream(new ByteArrayInputStream(data.getBytes))
 
   /** Verifies that an object exists in S3. */
-  private def assertObjectExists(pointer: BigObjectPointer, shouldExist: Boolean = true): Unit = {
+  private def assertObjectExists(pointer: BigObject, shouldExist: Boolean = true): Unit = {
     val exists = S3StorageClient.objectExists(pointer.getBucketName, pointer.getObjectKey)
     assert(exists == shouldExist)
   }
 
   /** Verifies standard bucket name. */
-  private def assertStandardBucket(pointer: BigObjectPointer): Unit = {
+  private def assertStandardBucket(pointer: BigObject): Unit = {
     assert(pointer.getBucketName == "texera-big-objects")
     assert(pointer.getUri.startsWith("s3://texera-big-objects/"))
   }
@@ -227,8 +227,8 @@ class BigObjectManagerSpec
   }
 
   test("BigObjectManager should fail to open non-existent big object") {
-    val fakePointer = new BigObjectPointer("s3://texera-big-objects/nonexistent/file")
-    assertThrows[IllegalArgumentException](BigObjectManager.open(fakePointer))
+    val fakeBigObject = new BigObject("s3://texera-big-objects/nonexistent/file")
+    assertThrows[IllegalArgumentException](BigObjectManager.open(fakeBigObject))
   }
 
   test("BigObjectManager should delete big objects by execution ID") {
@@ -321,13 +321,68 @@ class BigObjectManagerSpec
     BigObjectManager.delete(9)
   }
 
-  test("BigObjectManager should properly parse bucket name and object key from pointer") {
-    val pointer = createBigObject("URI parsing test", execId = 10)
+  test("BigObjectManager should properly parse bucket name and object key from big object") {
+    val bigObject = createBigObject("URI parsing test", execId = 10)
 
-    assertStandardBucket(pointer)
-    assert(pointer.getObjectKey.nonEmpty)
-    assert(!pointer.getObjectKey.startsWith("/"))
+    assertStandardBucket(bigObject)
+    assert(bigObject.getObjectKey.nonEmpty)
+    assert(!bigObject.getObjectKey.startsWith("/"))
 
     BigObjectManager.delete(10)
+  }
+
+  // ========================================
+  // Object-Oriented API Tests
+  // ========================================
+
+  test("BigObjectManager.create() should create and register a big object") {
+    createMockExecution(11)
+    val data = "Test data for BigObjectManager.create()"
+    val stream = new ByteArrayInputStream(data.getBytes)
+
+    val bigObject = BigObjectManager.create(stream, 11, "operator-11")
+
+    assertStandardBucket(bigObject)
+
+    val record = getDSLContext
+      .selectFrom(BIG_OBJECT)
+      .where(BIG_OBJECT.EXECUTION_ID.eq(11).and(BIG_OBJECT.OPERATOR_ID.eq("operator-11")))
+      .fetchOne()
+
+    assert(record != null)
+    assert(record.getUri == bigObject.getUri)
+
+    BigObjectManager.delete(11)
+  }
+
+  test("BigObject.open() should read big object contents") {
+    val data = "Test data for bigObject.open()"
+    val bigObject = createBigObject(data, execId = 12)
+
+    val stream = bigObject.open()
+    val readData = stream.read()
+    stream.close()
+
+    assert(readData.sameElements(data.getBytes))
+
+    BigObjectManager.delete(12)
+  }
+
+  test("BigObjectManager.create() and BigObject.open() should work together end-to-end") {
+    createMockExecution(13)
+    val data = "End-to-end test data"
+
+    // Create using BigObjectManager
+    val bigObject =
+      BigObjectManager.create(new ByteArrayInputStream(data.getBytes), 13, "operator-13")
+
+    // Read using BigObject instance method
+    val stream = bigObject.open()
+    val readData = stream.read()
+    stream.close()
+
+    assert(readData.sameElements(data.getBytes))
+
+    BigObjectManager.delete(13)
   }
 }

@@ -20,7 +20,7 @@
 package org.apache.texera.service.util
 
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.amber.core.tuple.BigObjectPointer
+import org.apache.amber.core.tuple.BigObject
 import org.apache.texera.dao.SqlServer
 import org.apache.texera.dao.jooq.generated.Tables.BIG_OBJECT
 
@@ -77,7 +77,7 @@ object BigObjectManager extends LazyLogging {
   private lazy val db = SqlServer.getInstance().createDSLContext()
 
   /** Creates a big object from InputStream, uploads to S3, and registers in database. */
-  def create(stream: InputStream, executionId: Int, operatorId: String): BigObjectPointer = {
+  def create(stream: InputStream, executionId: Int, operatorId: String): BigObject = {
 
     S3StorageClient.createBucketIfNotExist(DEFAULT_BUCKET)
 
@@ -100,11 +100,11 @@ object BigObjectManager extends LazyLogging {
         throw new RuntimeException(s"Failed to create big object: ${e.getMessage}", e)
     }
 
-    new BigObjectPointer(uri)
+    new BigObject(uri)
   }
 
   /** Opens a big object for reading. */
-  def open(ptr: BigObjectPointer): BigObjectStream = {
+  def open(ptr: BigObject): BigObjectStream = {
     require(
       S3StorageClient.objectExists(ptr.getBucketName, ptr.getObjectKey),
       s"Big object does not exist: ${ptr.getUri}"
@@ -128,7 +128,7 @@ object BigObjectManager extends LazyLogging {
 
     uris.foreach { uri =>
       try {
-        val ptr = new BigObjectPointer(uri)
+        val ptr = new BigObject(uri)
         S3StorageClient.deleteObject(ptr.getBucketName, ptr.getObjectKey)
       } catch {
         case e: Exception => logger.error(s"Failed to delete: $uri", e)

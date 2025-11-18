@@ -20,11 +20,8 @@
 package org.apache.amber.core.executor
 
 import org.apache.amber.core.state.State
-import org.apache.amber.core.tuple.{BigObjectPointer, Tuple, TupleLike}
+import org.apache.amber.core.tuple.{Tuple, TupleLike}
 import org.apache.amber.core.workflow.PortIdentity
-import org.apache.texera.service.util.{BigObjectManager, BigObjectStream}
-
-import java.io.InputStream
 
 trait OperatorExecutor {
 
@@ -32,37 +29,15 @@ trait OperatorExecutor {
   private var _executionId: Option[Int] = None
   private var _operatorId: Option[String] = None
 
-  protected def executionId: Int =
+  def executionId: Int =
     _executionId.getOrElse(throw new IllegalStateException("Execution context not initialized"))
 
-  protected def operatorId: String =
+  def operatorId: String =
     _operatorId.getOrElse(throw new IllegalStateException("Execution context not initialized"))
 
   final def initializeExecutionContext(execId: Int, opId: String): Unit = {
     _executionId = Some(execId)
     _operatorId = Some(opId)
-  }
-
-  /**
-    * Creates a big object from an InputStream and returns a pointer to it.
-    * This is a convenience method that automatically uses the operator's execution context.
-    *
-    * @param stream The input stream containing the data to store
-    * @return A BigObjectPointer that can be stored in tuple fields
-    */
-  final def createBigObject(stream: InputStream): BigObjectPointer = {
-    BigObjectManager.create(stream, executionId, operatorId)
-  }
-
-  /**
-    * Opens a big object for reading from a pointer.
-    * This is a convenience method that wraps BigObjectManager.open().
-    *
-    * @param pointer The pointer to the big object to open
-    * @return A BigObjectStream for reading the object's contents
-    */
-  final def openBigObject(pointer: BigObjectPointer): BigObjectStream = {
-    BigObjectManager.open(pointer)
   }
 
   def open(): Unit = {}

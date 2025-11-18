@@ -22,7 +22,7 @@ package org.apache.amber.operator.source.scan
 import org.apache.amber.core.executor.SourceOperatorExecutor
 import org.apache.amber.core.storage.DocumentFactory
 import org.apache.amber.core.tuple.AttributeTypeUtils.parseField
-import org.apache.amber.core.tuple.TupleLike
+import org.apache.amber.core.tuple.{BigObject, TupleLike}
 import org.apache.amber.util.JSONUtils.objectMapper
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
@@ -85,8 +85,8 @@ class FileScanSourceOpExec private[scan] (
               case FileAttributeType.SINGLE_STRING =>
                 new String(toByteArray(entry), desc.fileEncoding.getCharset)
               case FileAttributeType.BIG_OBJECT =>
-                // For big objects, create a big object pointer from the input stream
-                createBigObject(entry)
+                // For big objects, create a big object from the input stream
+                new BigObject(entry, FileScanSourceOpExec.this)
               case _ => parseField(toByteArray(entry), desc.attributeType.getType)
             })
             TupleLike(fields.toSeq: _*)

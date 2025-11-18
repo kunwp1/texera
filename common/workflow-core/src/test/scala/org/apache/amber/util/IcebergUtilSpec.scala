@@ -19,7 +19,7 @@
 
 package org.apache.amber.util
 
-import org.apache.amber.core.tuple.{AttributeType, BigObjectPointer, Schema, Tuple}
+import org.apache.amber.core.tuple.{AttributeType, BigObject, Schema, Tuple}
 import org.apache.amber.util.IcebergUtil.toIcebergSchema
 import org.apache.iceberg.data.GenericRecord
 import org.apache.iceberg.types.Types
@@ -239,7 +239,7 @@ class IcebergUtilSpec extends AnyFlatSpec {
 
     val tuple = Tuple
       .builder(schema)
-      .addSequentially(Array(Int.box(42), new BigObjectPointer("s3://bucket/object/key.data")))
+      .addSequentially(Array(Int.box(42), new BigObject("s3://bucket/object/key.data")))
       .build()
 
     val record = IcebergUtil.toGenericRecord(toIcebergSchema(schema), tuple)
@@ -252,8 +252,8 @@ class IcebergUtilSpec extends AnyFlatSpec {
     val roundTripTuple = IcebergUtil.fromRecord(record, schema)
     assert(roundTripTuple == tuple)
 
-    // BigObjectPointer properties are accessible
-    val bigObj = roundTripTuple.getField[BigObjectPointer]("large_data")
+    // BigObject properties are accessible
+    val bigObj = roundTripTuple.getField[BigObject]("large_data")
     assert(bigObj.getUri == "s3://bucket/object/key.data")
     assert(bigObj.getBucketName == "bucket")
     assert(bigObj.getObjectKey == "object/key.data")
@@ -281,7 +281,7 @@ class IcebergUtilSpec extends AnyFlatSpec {
       .addSequentially(
         Array(
           Int.box(123),
-          new BigObjectPointer("s3://bucket1/file1.dat"),
+          new BigObject("s3://bucket1/file1.dat"),
           "normal string",
           null // null BIG_OBJECT
         )

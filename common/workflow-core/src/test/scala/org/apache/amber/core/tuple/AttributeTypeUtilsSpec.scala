@@ -191,9 +191,9 @@ class AttributeTypeUtilsSpec extends AnyFunSuite {
   }
 
   test("parseField correctly parses to BIG_OBJECT") {
-    // Valid S3 URI strings are converted to BigObjectPointer
+    // Valid S3 URI strings are converted to BigObject
     val pointer1 = parseField("s3://bucket/path/to/object", AttributeType.BIG_OBJECT)
-      .asInstanceOf[BigObjectPointer]
+      .asInstanceOf[BigObject]
     assert(pointer1.getUri == "s3://bucket/path/to/object")
     assert(pointer1.getBucketName == "bucket")
     assert(pointer1.getObjectKey == "path/to/object")

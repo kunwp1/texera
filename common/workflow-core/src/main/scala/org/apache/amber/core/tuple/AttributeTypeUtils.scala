@@ -128,7 +128,7 @@ object AttributeTypeUtils extends Serializable {
       case AttributeType.TIMESTAMP  => parseTimestamp(field)
       case AttributeType.STRING     => field.toString
       case AttributeType.BINARY     => field
-      case AttributeType.BIG_OBJECT => new BigObjectPointer(field.toString)
+      case AttributeType.BIG_OBJECT => new BigObject(field.toString)
       case AttributeType.ANY | _    => field
     }
   }

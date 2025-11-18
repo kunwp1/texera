@@ -19,7 +19,7 @@
 
 package org.apache.amber.operator.source.scan
 
-import org.apache.amber.core.tuple.{AttributeType, BigObjectPointer, Schema, SchemaEnforceable}
+import org.apache.amber.core.tuple.{AttributeType, BigObject, Schema, SchemaEnforceable}
 import org.apache.amber.util.JSONUtils.objectMapper
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AnyFlatSpec
@@ -120,7 +120,7 @@ class FileScanSourceOpExecSpec extends AnyFlatSpec with BeforeAndAfterAll {
   }
 
   // Execution Tests
-  it should "create BigObjectPointer when reading file with BIG_OBJECT type" in {
+  it should "create BigObject when reading file with BIG_OBJECT type" in {
     val desc = createDescriptor()
     desc.setResolvedFileName(URI.create(testFile.toUri.toString))
 
@@ -138,26 +138,26 @@ class FileScanSourceOpExecSpec extends AnyFlatSpec with BeforeAndAfterAll {
         .enforceSchema(desc.sourceSchema())
         .getField[Any]("line")
 
-      assert(field.isInstanceOf[BigObjectPointer])
-      assert(field.asInstanceOf[BigObjectPointer].getUri.startsWith("s3://"))
+      assert(field.isInstanceOf[BigObject])
+      assert(field.asInstanceOf[BigObject].getUri.startsWith("s3://"))
     } catch {
       case e: Exception =>
         info(s"S3 not configured: ${e.getMessage}")
     }
   }
 
-  // BigObjectPointer Tests
-  it should "create valid BigObjectPointer with correct URI parsing" in {
-    val pointer = new BigObjectPointer("s3://bucket/path/to/object")
+  // BigObject Tests
+  it should "create valid BigObject with correct URI parsing" in {
+    val pointer = new BigObject("s3://bucket/path/to/object")
 
     assert(pointer.getUri == "s3://bucket/path/to/object")
     assert(pointer.getBucketName == "bucket")
     assert(pointer.getObjectKey == "path/to/object")
   }
 
-  it should "reject invalid BigObjectPointer URIs" in {
-    assertThrows[IllegalArgumentException](new BigObjectPointer("http://invalid"))
-    assertThrows[IllegalArgumentException](new BigObjectPointer("not-a-uri"))
-    assertThrows[IllegalArgumentException](new BigObjectPointer(null))
+  it should "reject invalid BigObject URIs" in {
+    assertThrows[IllegalArgumentException](new BigObject("http://invalid"))
+    assertThrows[IllegalArgumentException](new BigObject("not-a-uri"))
+    assertThrows[IllegalArgumentException](new BigObject(null))
   }
 }

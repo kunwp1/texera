@@ -20,7 +20,7 @@
 package org.apache.amber.util
 
 import org.apache.amber.config.StorageConfig
-import org.apache.amber.core.tuple.{Attribute, AttributeType, BigObjectPointer, Schema, Tuple}
+import org.apache.amber.core.tuple.{Attribute, AttributeType, BigObject, Schema, Tuple}
 import org.apache.hadoop.conf.Configuration
 import org.apache.iceberg.catalog.{Catalog, TableIdentifier}
 import org.apache.iceberg.data.parquet.GenericParquetReaders
@@ -254,11 +254,11 @@ object IcebergUtil {
       case (attribute, index) =>
         val fieldName = encodeBigObjectFieldName(attribute.getName, attribute.getType)
         val value = tuple.getField[AnyRef](index) match {
-          case null                        => null
-          case ts: Timestamp               => ts.toInstant.atZone(ZoneId.systemDefault()).toLocalDateTime
-          case bytes: Array[Byte]          => ByteBuffer.wrap(bytes)
-          case bigObjPtr: BigObjectPointer => bigObjPtr.getUri
-          case other                       => other
+          case null                 => null
+          case ts: Timestamp        => ts.toInstant.atZone(ZoneId.systemDefault()).toLocalDateTime
+          case bytes: Array[Byte]   => ByteBuffer.wrap(bytes)
+          case bigObjPtr: BigObject => bigObjPtr.getUri
+          case other                => other
         }
         record.setField(fieldName, value)
     }
@@ -286,7 +286,7 @@ object IcebergUtil {
           buffer.get(bytes)
           bytes
         case uri: String if attribute.getType == AttributeType.BIG_OBJECT =>
-          new BigObjectPointer(uri)
+          new BigObject(uri)
         case other => other
       }
     }

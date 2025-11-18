@@ -22,24 +22,43 @@ package org.apache.amber.core.tuple;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
+import org.apache.amber.core.executor.OperatorExecutor;
+import org.apache.texera.service.util.BigObjectManager;
+import org.apache.texera.service.util.BigObjectStream;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.util.Objects;
 
 /**
- * BigObjectPointer represents a pointer to a large object stored in S3.
- * The pointer is formatted as a URI: s3://bucket/path/to/object
+ * BigObject represents a reference to a large object stored in S3.
+ * The reference is formatted as a URI: s3://bucket/path/to/object
  */
-public class BigObjectPointer {
+public class BigObject {
     
     private final String uri;
     
+    /**
+     * Creates a BigObject from an S3 URI (primarily for deserialization).
+     * 
+     * @param uri S3 URI in the format s3://bucket/path/to/object
+     */
     @JsonCreator
-    public BigObjectPointer(@JsonProperty("uri") String uri) {
+    public BigObject(@JsonProperty("uri") String uri) {
         if (uri == null || !uri.startsWith("s3://")) {
-            throw new IllegalArgumentException("BigObjectPointer URI must start with 's3://' but was: " + uri);
+            throw new IllegalArgumentException("BigObject URI must start with 's3://' but was: " + uri);
         }
         this.uri = uri;
+    }
+    
+    /**
+     * Creates a new BigObject by uploading the stream to S3.
+     * 
+     * @param stream The input stream containing the data to store
+     * @param executor The operator executor that provides execution context
+     */
+    public BigObject(InputStream stream, OperatorExecutor executor) {
+        this(BigObjectManager.create(stream, executor.executionId(), executor.operatorId()).getUri());
     }
     
     @JsonValue
@@ -56,6 +75,13 @@ public class BigObjectPointer {
         return path.startsWith("/") ? path.substring(1) : path;
     }
     
+    /**
+     * Opens this big object for reading. Caller must close the returned stream.
+     */
+    public BigObjectStream open() {
+        return BigObjectManager.open(this);
+    }
+    
     @Override
     public String toString() {
         return uri;
@@ -64,8 +90,8 @@ public class BigObjectPointer {
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
-        if (!(obj instanceof BigObjectPointer)) return false;
-        BigObjectPointer that = (BigObjectPointer) obj;
+        if (!(obj instanceof BigObject)) return false;
+        BigObject that = (BigObject) obj;
         return Objects.equals(uri, that.uri);
     }
     
