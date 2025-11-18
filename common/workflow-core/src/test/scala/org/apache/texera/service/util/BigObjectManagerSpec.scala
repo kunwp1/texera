@@ -19,41 +19,24 @@
 
 package org.apache.texera.service.util
 
-import com.dimafeng.testcontainers.{ForAllTestContainer, MinIOContainer}
-import org.apache.amber.config.StorageConfig
 import org.apache.amber.core.tuple.BigObjectPointer
 import org.apache.texera.dao.MockTexeraDB
 import org.apache.texera.dao.jooq.generated.Tables._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
-import org.testcontainers.utility.DockerImageName
 
 import java.io.ByteArrayInputStream
 
 class BigObjectManagerSpec
     extends AnyFunSuite
     with MockTexeraDB
-    with ForAllTestContainer
+    with S3StorageTestBase
     with BeforeAndAfterAll
     with BeforeAndAfterEach {
 
-  // MinIO container for S3-compatible storage
-  override val container: MinIOContainer = MinIOContainer(
-    dockerImageName = DockerImageName.parse("minio/minio:RELEASE.2025-02-28T09-55-16Z"),
-    userName = "texera_minio",
-    password = "password"
-  )
-
-  // Initialize database and configure storage after container starts
-  override def afterStart(): Unit = {
-    super.afterStart()
-
-    // Initialize the embedded database
+  override def beforeAll(): Unit = {
+    super.beforeAll()
     initializeDBAndReplaceDSLContext()
-
-    // Configure storage to use MinIO container
-    // Only s3Endpoint is a var, so we can only override that
-    StorageConfig.s3Endpoint = s"http://${container.host}:${container.mappedPort(9000)}"
   }
 
   override def afterAll(): Unit = {

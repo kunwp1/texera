@@ -19,34 +19,22 @@
 
 package org.apache.texera.service.util
 
-import com.dimafeng.testcontainers.{ForAllTestContainer, MinIOContainer}
-import org.apache.amber.config.StorageConfig
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
-import org.testcontainers.utility.DockerImageName
 
 import java.io.ByteArrayInputStream
 import scala.util.Random
 
 class S3StorageClientSpec
     extends AnyFunSuite
-    with ForAllTestContainer
+    with S3StorageTestBase
     with BeforeAndAfterAll
     with BeforeAndAfterEach {
 
-  // MinIO container for S3-compatible storage
-  override val container: MinIOContainer = MinIOContainer(
-    dockerImageName = DockerImageName.parse("minio/minio:RELEASE.2025-02-28T09-55-16Z"),
-    userName = "texera_minio",
-    password = "password"
-  )
-
   private val testBucketName = "test-s3-storage-client"
 
-  // Configure storage after container starts
-  override def afterStart(): Unit = {
-    super.afterStart()
-    StorageConfig.s3Endpoint = s"http://${container.host}:${container.mappedPort(9000)}"
+  override def beforeAll(): Unit = {
+    super.beforeAll()
     S3StorageClient.createBucketIfNotExist(testBucketName)
   }
 
