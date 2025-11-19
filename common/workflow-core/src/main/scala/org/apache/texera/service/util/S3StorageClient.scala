@@ -245,24 +245,6 @@ object S3StorageClient {
   }
 
   /**
-    * Checks if an object exists in S3.
-    *
-    * @param bucketName The S3 bucket name.
-    * @param objectKey The object key (path) in S3.
-    * @return True if the object exists, false otherwise.
-    */
-  def objectExists(bucketName: String, objectKey: String): Boolean = {
-    try {
-      s3Client.headObject(
-        HeadObjectRequest.builder().bucket(bucketName).key(objectKey).build()
-      )
-      true
-    } catch {
-      case _: Exception => false
-    }
-  }
-
-  /**
     * Deletes a single object from S3.
     *
     * @param bucketName The S3 bucket name.

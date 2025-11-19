@@ -24,41 +24,56 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonValue;
 import org.apache.amber.core.executor.OperatorExecutor;
 import org.apache.texera.service.util.BigObjectManager;
-import org.apache.texera.service.util.BigObjectStream;
 
-import java.io.InputStream;
 import java.net.URI;
 import java.util.Objects;
 
 /**
  * BigObject represents a reference to a large object stored in S3.
- * The reference is formatted as a URI: s3://bucket/path/to/object
+ * 
+ * Each BigObject is identified by an S3 URI (s3://bucket/path/to/object).
+ * BigObjects are automatically tracked and cleaned up when the workflow execution completes.
  */
 public class BigObject {
     
     private final String uri;
     
     /**
-     * Creates a BigObject from an S3 URI (primarily for deserialization).
+     * Creates a BigObject from an existing S3 URI.
+     * Used primarily for deserialization from JSON.
      * 
      * @param uri S3 URI in the format s3://bucket/path/to/object
+     * @throws IllegalArgumentException if URI is null or doesn't start with "s3://"
      */
     @JsonCreator
     public BigObject(@JsonProperty("uri") String uri) {
-        if (uri == null || !uri.startsWith("s3://")) {
-            throw new IllegalArgumentException("BigObject URI must start with 's3://' but was: " + uri);
+        if (uri == null) {
+            throw new IllegalArgumentException("BigObject URI cannot be null");
+        }
+        if (!uri.startsWith("s3://")) {
+            throw new IllegalArgumentException(
+                "BigObject URI must start with 's3://', got: " + uri
+            );
         }
         this.uri = uri;
     }
     
     /**
-     * Creates a new BigObject by uploading the stream to S3.
+     * Creates a new BigObject for writing data.
+     * Generates a unique S3 URI and registers it with the execution context.
      * 
-     * @param stream The input stream containing the data to store
-     * @param executor The operator executor that provides execution context
+     * Usage example:
+     * 
+     *   BigObject bigObject = new BigObject(executor);
+     *   try (BigObjectOutputStream out = new BigObjectOutputStream(bigObject)) {
+     *     out.write(data);
+     *   }
+     *   // bigObject is now ready to be added to tuples
+     * 
+     * @param executor The operator executor providing execution context
      */
-    public BigObject(InputStream stream, OperatorExecutor executor) {
-        this(BigObjectManager.create(stream, executor.executionId(), executor.operatorId()).getUri());
+    public BigObject(OperatorExecutor executor) {
+        this(BigObjectManager.create(executor));
     }
     
     @JsonValue
@@ -73,13 +88,6 @@ public class BigObject {
     public String getObjectKey() {
         String path = URI.create(uri).getPath();
         return path.startsWith("/") ? path.substring(1) : path;
-    }
-    
-    /**
-     * Opens this big object for reading. Caller must close the returned stream.
-     */
-    public BigObjectStream open() {
-        return BigObjectManager.open(this);
     }
     
     @Override

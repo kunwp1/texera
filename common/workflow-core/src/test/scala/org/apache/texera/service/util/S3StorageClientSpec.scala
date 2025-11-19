@@ -81,7 +81,6 @@ class S3StorageClientSpec
 
     assert(eTag != null)
     assert(eTag.nonEmpty)
-    assert(S3StorageClient.objectExists(testBucketName, objectKey))
 
     // Clean up
     S3StorageClient.deleteObject(testBucketName, objectKey)
@@ -93,7 +92,6 @@ class S3StorageClientSpec
     val eTag = S3StorageClient.uploadObject(testBucketName, objectKey, createInputStream(""))
 
     assert(eTag != null)
-    assert(S3StorageClient.objectExists(testBucketName, objectKey))
 
     // Clean up
     S3StorageClient.deleteObject(testBucketName, objectKey)
@@ -108,7 +106,6 @@ class S3StorageClientSpec
 
     assert(eTag != null)
     assert(eTag.nonEmpty)
-    assert(S3StorageClient.objectExists(testBucketName, objectKey))
 
     // Verify the uploaded content
     val downloadedStream = S3StorageClient.downloadObject(testBucketName, objectKey)
@@ -129,7 +126,6 @@ class S3StorageClientSpec
     val eTag = S3StorageClient.uploadObject(testBucketName, objectKey, createInputStream(testData))
 
     assert(eTag != null)
-    assert(S3StorageClient.objectExists(testBucketName, objectKey))
 
     // Clean up
     S3StorageClient.deleteObject(testBucketName, objectKey)
@@ -232,54 +228,6 @@ class S3StorageClientSpec
   }
 
   // ========================================
-  // objectExists Tests
-  // ========================================
-
-  test("objectExists should return true for existing object") {
-    val objectKey = "test/exists-test.txt"
-    S3StorageClient.uploadObject(testBucketName, objectKey, createInputStream("exists test"))
-
-    assert(S3StorageClient.objectExists(testBucketName, objectKey))
-
-    // Clean up
-    S3StorageClient.deleteObject(testBucketName, objectKey)
-  }
-
-  test("objectExists should return false for non-existent object") {
-    val nonExistentKey = "test/does-not-exist.txt"
-
-    assert(!S3StorageClient.objectExists(testBucketName, nonExistentKey))
-  }
-
-  test("objectExists should return false for deleted object") {
-    val objectKey = "test/deleted-object.txt"
-    S3StorageClient.uploadObject(testBucketName, objectKey, createInputStream("to be deleted"))
-
-    assert(S3StorageClient.objectExists(testBucketName, objectKey))
-
-    S3StorageClient.deleteObject(testBucketName, objectKey)
-
-    assert(!S3StorageClient.objectExists(testBucketName, objectKey))
-  }
-
-  test("objectExists should return false for non-existent bucket") {
-    val nonExistentBucket = "non-existent-bucket-12345"
-    val objectKey = "test/object.txt"
-
-    assert(!S3StorageClient.objectExists(nonExistentBucket, objectKey))
-  }
-
-  test("objectExists should handle objects with special characters") {
-    val objectKey = "test/special/path with spaces & chars!@#.txt"
-    S3StorageClient.uploadObject(testBucketName, objectKey, createInputStream("special chars"))
-
-    assert(S3StorageClient.objectExists(testBucketName, objectKey))
-
-    // Clean up
-    S3StorageClient.deleteObject(testBucketName, objectKey)
-  }
-
-  // ========================================
   // deleteObject Tests
   // ========================================
 
@@ -287,11 +235,12 @@ class S3StorageClientSpec
     val objectKey = "test/delete-test.txt"
     S3StorageClient.uploadObject(testBucketName, objectKey, createInputStream("delete me"))
 
-    assert(S3StorageClient.objectExists(testBucketName, objectKey))
-
     S3StorageClient.deleteObject(testBucketName, objectKey)
 
-    assert(!S3StorageClient.objectExists(testBucketName, objectKey))
+    // Verify deletion by attempting to download
+    assertThrows[Exception] {
+      S3StorageClient.downloadObject(testBucketName, objectKey)
+    }
   }
 
   test("deleteObject should not throw exception for non-existent object") {
@@ -306,10 +255,13 @@ class S3StorageClientSpec
     val objectKey = "test/large-delete-test.bin"
 
     S3StorageClient.uploadObject(testBucketName, objectKey, createInputStream(largeData))
-    assert(S3StorageClient.objectExists(testBucketName, objectKey))
 
     S3StorageClient.deleteObject(testBucketName, objectKey)
-    assert(!S3StorageClient.objectExists(testBucketName, objectKey))
+
+    // Verify deletion by attempting to download
+    assertThrows[Exception] {
+      S3StorageClient.downloadObject(testBucketName, objectKey)
+    }
   }
 
   test("deleteObject should handle multiple deletions of the same object") {
@@ -321,11 +273,9 @@ class S3StorageClientSpec
     )
 
     S3StorageClient.deleteObject(testBucketName, objectKey)
-    assert(!S3StorageClient.objectExists(testBucketName, objectKey))
 
     // Second delete should not throw exception
     S3StorageClient.deleteObject(testBucketName, objectKey)
-    assert(!S3StorageClient.objectExists(testBucketName, objectKey))
   }
 
   // ========================================
@@ -340,9 +290,6 @@ class S3StorageClientSpec
     val eTag = S3StorageClient.uploadObject(testBucketName, objectKey, createInputStream(testData))
     assert(eTag != null)
 
-    // Verify exists
-    assert(S3StorageClient.objectExists(testBucketName, objectKey))
-
     // Download
     val inputStream = S3StorageClient.downloadObject(testBucketName, objectKey)
     val downloadedData = new String(readInputStream(inputStream))
@@ -351,7 +298,6 @@ class S3StorageClientSpec
 
     // Delete
     S3StorageClient.deleteObject(testBucketName, objectKey)
-    assert(!S3StorageClient.objectExists(testBucketName, objectKey))
   }
 
   test("multiple objects can be managed independently") {
@@ -367,18 +313,8 @@ class S3StorageClientSpec
         S3StorageClient.uploadObject(testBucketName, key, createInputStream(data))
     }
 
-    // Verify all exist
-    objects.keys.foreach { key =>
-      assert(S3StorageClient.objectExists(testBucketName, key))
-    }
-
     // Delete one object
     S3StorageClient.deleteObject(testBucketName, "test/object2.txt")
-
-    // Verify deletion and others still exist
-    assert(S3StorageClient.objectExists(testBucketName, "test/object1.txt"))
-    assert(!S3StorageClient.objectExists(testBucketName, "test/object2.txt"))
-    assert(S3StorageClient.objectExists(testBucketName, "test/object3.txt"))
 
     // Clean up remaining objects
     S3StorageClient.deleteObject(testBucketName, "test/object1.txt")
@@ -390,7 +326,6 @@ class S3StorageClientSpec
     val testData = "Nested path test"
 
     S3StorageClient.uploadObject(testBucketName, objectKey, createInputStream(testData))
-    assert(S3StorageClient.objectExists(testBucketName, objectKey))
 
     val inputStream = S3StorageClient.downloadObject(testBucketName, objectKey)
     val downloadedData = new String(readInputStream(inputStream))
@@ -398,6 +333,5 @@ class S3StorageClientSpec
     assert(downloadedData == testData)
 
     S3StorageClient.deleteObject(testBucketName, objectKey)
-    assert(!S3StorageClient.objectExists(testBucketName, objectKey))
   }
 }

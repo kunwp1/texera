@@ -24,6 +24,7 @@ import org.apache.amber.core.storage.DocumentFactory
 import org.apache.amber.core.tuple.AttributeTypeUtils.parseField
 import org.apache.amber.core.tuple.{BigObject, TupleLike}
 import org.apache.amber.util.JSONUtils.objectMapper
+import org.apache.texera.service.util.BigObjectOutputStream
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream
 import org.apache.commons.io.IOUtils.toByteArray
@@ -85,8 +86,20 @@ class FileScanSourceOpExec private[scan] (
               case FileAttributeType.SINGLE_STRING =>
                 new String(toByteArray(entry), desc.fileEncoding.getCharset)
               case FileAttributeType.BIG_OBJECT =>
-                // For big objects, create a big object from the input stream
-                new BigObject(entry, FileScanSourceOpExec.this)
+                // For big objects, create reference and upload via streaming
+                val bigObject = new BigObject(FileScanSourceOpExec.this)
+                val out = new BigObjectOutputStream(bigObject)
+                try {
+                  val buffer = new Array[Byte](8192)
+                  var bytesRead = entry.read(buffer)
+                  while (bytesRead != -1) {
+                    out.write(buffer, 0, bytesRead)
+                    bytesRead = entry.read(buffer)
+                  }
+                } finally {
+                  out.close()
+                }
+                bigObject
               case _ => parseField(toByteArray(entry), desc.attributeType.getType)
             })
             TupleLike(fields.toSeq: _*)

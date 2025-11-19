@@ -158,6 +158,6 @@ class FileScanSourceOpExecSpec extends AnyFlatSpec with BeforeAndAfterAll {
   it should "reject invalid BigObject URIs" in {
     assertThrows[IllegalArgumentException](new BigObject("http://invalid"))
     assertThrows[IllegalArgumentException](new BigObject("not-a-uri"))
-    assertThrows[IllegalArgumentException](new BigObject(null))
+    assertThrows[IllegalArgumentException](new BigObject(null.asInstanceOf[String]))
   }
 }

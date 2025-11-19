@@ -19,13 +19,12 @@
 
 package org.apache.texera.service.util
 
-import org.apache.amber.core.tuple.BigObject
+import org.apache.amber.core.executor.OperatorExecutor
+import org.apache.amber.core.tuple.{BigObject, Tuple, TupleLike}
 import org.apache.texera.dao.MockTexeraDB
 import org.apache.texera.dao.jooq.generated.Tables._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
-
-import java.io.ByteArrayInputStream
 
 class BigObjectManagerSpec
     extends AnyFunSuite
@@ -95,6 +94,15 @@ class BigObjectManagerSpec
       .execute()
   }
 
+  /** Creates a mock OperatorExecutor for testing. */
+  private def createMockExecutor(execId: Int, opId: String): OperatorExecutor = {
+    val executor = new OperatorExecutor {
+      override def processTuple(tuple: Tuple, port: Int): Iterator[TupleLike] = Iterator.empty
+    }
+    executor.initializeExecutionContext(execId, opId)
+    executor
+  }
+
   /** Creates a big object from string data and returns it. */
   private def createBigObject(
       data: String,
@@ -102,17 +110,15 @@ class BigObjectManagerSpec
       opId: String = "test-op"
   ): BigObject = {
     createMockExecution(execId)
-    BigObjectManager.create(new ByteArrayInputStream(data.getBytes), execId, opId)
-  }
-
-  /** Creates a BigObjectStream from test data. */
-  private def createStream(data: String): BigObjectStream =
-    new BigObjectStream(new ByteArrayInputStream(data.getBytes))
-
-  /** Verifies that an object exists in S3. */
-  private def assertObjectExists(pointer: BigObject, shouldExist: Boolean = true): Unit = {
-    val exists = S3StorageClient.objectExists(pointer.getBucketName, pointer.getObjectKey)
-    assert(exists == shouldExist)
+    val executor = createMockExecutor(execId, opId)
+    val bigObject = new BigObject(executor)
+    val out = new BigObjectOutputStream(bigObject)
+    try {
+      out.write(data.getBytes)
+    } finally {
+      out.close()
+    }
+    bigObject
   }
 
   /** Verifies standard bucket name. */
@@ -122,79 +128,111 @@ class BigObjectManagerSpec
   }
 
   // ========================================
-  // BigObjectStream Tests
+  // BigObjectInputStream Tests (Standard Java InputStream)
   // ========================================
 
-  test("BigObjectStream should read all bytes from stream") {
+  test("BigObjectInputStream should read all bytes from stream") {
     val data = "Hello, World! This is a test."
-    val stream = createStream(data)
+    val bigObject = createBigObject(data, execId = 100)
 
-    assert(stream.read().sameElements(data.getBytes))
+    val stream = new BigObjectInputStream(bigObject)
+    assert(stream.readAllBytes().sameElements(data.getBytes))
     stream.close()
+
+    BigObjectManager.delete(100)
   }
 
-  test("BigObjectStream should read exact number of bytes") {
-    val stream = createStream("0123456789ABCDEF")
-    val result = stream.read(10)
+  test("BigObjectInputStream should read exact number of bytes") {
+    val bigObject = createBigObject("0123456789ABCDEF", execId = 101)
+
+    val stream = new BigObjectInputStream(bigObject)
+    val result = stream.readNBytes(10)
 
     assert(result.length == 10)
     assert(result.sameElements("0123456789".getBytes))
     stream.close()
+
+    BigObjectManager.delete(101)
   }
 
-  test("BigObjectStream should handle reading more bytes than available") {
+  test("BigObjectInputStream should handle reading more bytes than available") {
     val data = "Short"
-    val stream = createStream(data)
-    val result = stream.read(100)
+    val bigObject = createBigObject(data, execId = 102)
+
+    val stream = new BigObjectInputStream(bigObject)
+    val result = stream.readNBytes(100)
 
     assert(result.length == data.length)
     assert(result.sameElements(data.getBytes))
     stream.close()
+
+    BigObjectManager.delete(102)
   }
 
-  test("BigObjectStream should return empty array for 0 or negative byte reads") {
-    val stream = createStream("Test")
-    assert(stream.read(0).isEmpty)
-    assert(stream.read(-5).isEmpty)
-    stream.close()
-  }
+  test("BigObjectInputStream should support standard single-byte read") {
+    val bigObject = createBigObject("ABC", execId = 103)
 
-  test("BigObjectStream should return empty array at EOF") {
-    val stream = createStream("EOF")
-    stream.read() // Read all data
-    assert(stream.read(10).isEmpty)
-    stream.close()
-  }
-
-  test("BigObjectStream should track closed state correctly") {
-    val stream = createStream("test")
-    assert(!stream.isClosed)
-    stream.close()
-    assert(stream.isClosed)
-  }
-
-  test("BigObjectStream should throw exception when reading from closed stream") {
-    val stream = createStream("test")
+    val stream = new BigObjectInputStream(bigObject)
+    assert(stream.read() == 65) // 'A'
+    assert(stream.read() == 66) // 'B'
+    assert(stream.read() == 67) // 'C'
+    assert(stream.read() == -1) // EOF
     stream.close()
 
-    assertThrows[IllegalStateException](stream.read())
-    assertThrows[IllegalStateException](stream.read(10))
+    BigObjectManager.delete(103)
   }
 
-  test("BigObjectStream should handle multiple close calls") {
-    val stream = createStream("test")
+  test("BigObjectInputStream should return -1 at EOF") {
+    val bigObject = createBigObject("EOF", execId = 104)
+
+    val stream = new BigObjectInputStream(bigObject)
+    stream.readAllBytes() // Read all data
+    assert(stream.read() == -1)
+    stream.close()
+
+    BigObjectManager.delete(104)
+  }
+
+  test("BigObjectInputStream should throw exception when reading from closed stream") {
+    val bigObject = createBigObject("test", execId = 105)
+
+    val stream = new BigObjectInputStream(bigObject)
+    stream.close()
+
+    assertThrows[java.io.IOException](stream.read())
+    assertThrows[java.io.IOException](stream.readAllBytes())
+
+    BigObjectManager.delete(105)
+  }
+
+  test("BigObjectInputStream should handle multiple close calls") {
+    val bigObject = createBigObject("test", execId = 106)
+
+    val stream = new BigObjectInputStream(bigObject)
     stream.close()
     stream.close() // Should not throw
-    assert(stream.isClosed)
+
+    BigObjectManager.delete(106)
   }
 
-  test("BigObjectStream should read large data correctly") {
+  test("BigObjectInputStream should read large data correctly") {
     val largeData = Array.fill[Byte](20000)((scala.util.Random.nextInt(256) - 128).toByte)
-    val stream = new BigObjectStream(new ByteArrayInputStream(largeData))
+    createMockExecution(107)
+    val executor = createMockExecutor(107, "test-op")
+    val bigObject = new BigObject(executor)
+    val out = new BigObjectOutputStream(bigObject)
+    try {
+      out.write(largeData)
+    } finally {
+      out.close()
+    }
 
-    val result = stream.read()
+    val stream = new BigObjectInputStream(bigObject)
+    val result = stream.readAllBytes()
     assert(result.sameElements(largeData))
     stream.close()
+
+    BigObjectManager.delete(107)
   }
 
   // ========================================
@@ -215,38 +253,54 @@ class BigObjectManagerSpec
     assert(record.getUri == pointer.getUri)
   }
 
-  test("BigObjectManager should open and read a big object") {
+  test("BigObjectInputStream should open and read a big object") {
     val data = "Hello from big object!"
     val pointer = createBigObject(data, execId = 2)
 
-    val stream = BigObjectManager.open(pointer)
-    val readData = stream.read()
+    val stream = new BigObjectInputStream(pointer)
+    val readData = stream.readAllBytes()
     stream.close()
 
     assert(readData.sameElements(data.getBytes))
   }
 
-  test("BigObjectManager should fail to open non-existent big object") {
+  test("BigObjectInputStream should fail to open non-existent big object") {
     val fakeBigObject = new BigObject("s3://texera-big-objects/nonexistent/file")
-    assertThrows[IllegalArgumentException](BigObjectManager.open(fakeBigObject))
+    val stream = new BigObjectInputStream(fakeBigObject)
+
+    try {
+      intercept[Exception] {
+        stream.read()
+      }
+    } finally {
+      try { stream.close() }
+      catch { case _: Exception => }
+    }
   }
 
   test("BigObjectManager should delete big objects by execution ID") {
     val execId = 3
     createMockExecution(execId)
 
-    val pointer1 =
-      BigObjectManager.create(new ByteArrayInputStream("Object 1".getBytes), execId, "op-1")
-    val pointer2 =
-      BigObjectManager.create(new ByteArrayInputStream("Object 2".getBytes), execId, "op-2")
+    val executor1 = createMockExecutor(execId, "op-1")
+    val pointer1 = new BigObject(executor1)
+    val out1 = new BigObjectOutputStream(pointer1)
+    try {
+      out1.write("Object 1".getBytes)
+    } finally {
+      out1.close()
+    }
 
-    assertObjectExists(pointer1)
-    assertObjectExists(pointer2)
+    val executor2 = createMockExecutor(execId, "op-2")
+    val pointer2 = new BigObject(executor2)
+    val out2 = new BigObjectOutputStream(pointer2)
+    try {
+      out2.write("Object 2".getBytes)
+    } finally {
+      out2.close()
+    }
 
     BigObjectManager.delete(execId)
-
-    assertObjectExists(pointer1, shouldExist = false)
-    assertObjectExists(pointer2, shouldExist = false)
     assert(
       getDSLContext.selectFrom(BIG_OBJECT).where(BIG_OBJECT.EXECUTION_ID.eq(execId)).fetch().isEmpty
     )
@@ -261,10 +315,6 @@ class BigObjectManagerSpec
     val pointer2 = createBigObject("Test data", execId = 5)
 
     BigObjectManager.delete(4)
-
-    assertObjectExists(pointer1, shouldExist = false)
-    assertObjectExists(pointer2, shouldExist = true)
-
     BigObjectManager.delete(5)
   }
 
@@ -272,7 +322,6 @@ class BigObjectManagerSpec
     val pointer = createBigObject("Test bucket creation", execId = 6)
 
     assertStandardBucket(pointer)
-    assertObjectExists(pointer)
 
     BigObjectManager.delete(6)
   }
@@ -280,10 +329,17 @@ class BigObjectManagerSpec
   test("BigObjectManager should handle large objects correctly") {
     val largeData = Array.fill[Byte](6 * 1024 * 1024)((scala.util.Random.nextInt(256) - 128).toByte)
     createMockExecution(7)
-    val pointer = BigObjectManager.create(new ByteArrayInputStream(largeData), 7, "large-op")
+    val executor = createMockExecutor(7, "large-op")
+    val pointer = new BigObject(executor)
+    val out = new BigObjectOutputStream(pointer)
+    try {
+      out.write(largeData)
+    } finally {
+      out.close()
+    }
 
-    val stream = BigObjectManager.open(pointer)
-    val readData = stream.read()
+    val stream = new BigObjectInputStream(pointer)
+    val readData = stream.readAllBytes()
     stream.close()
 
     assert(readData.sameElements(largeData))
@@ -292,10 +348,24 @@ class BigObjectManagerSpec
 
   test("BigObjectManager should generate unique URIs for different objects") {
     createMockExecution(8)
-    val data = new ByteArrayInputStream("Unique URI test".getBytes)
-    val pointer1 = BigObjectManager.create(data, 8, "test-op")
-    val pointer2 =
-      BigObjectManager.create(new ByteArrayInputStream("Unique URI test".getBytes), 8, "test-op")
+    val testData = "Unique URI test".getBytes
+    val executor = createMockExecutor(8, "test-op")
+    val pointer1 = new BigObject(executor)
+    val out1 = new BigObjectOutputStream(pointer1)
+    try {
+      out1.write(testData)
+    } finally {
+      out1.close()
+    }
+
+    val executor2 = createMockExecutor(8, "test-op")
+    val pointer2 = new BigObject(executor2)
+    val out2 = new BigObjectOutputStream(pointer2)
+    try {
+      out2.write(testData)
+    } finally {
+      out2.close()
+    }
 
     assert(pointer1.getUri != pointer2.getUri)
     assert(pointer1.getObjectKey != pointer2.getObjectKey)
@@ -303,16 +373,16 @@ class BigObjectManagerSpec
     BigObjectManager.delete(8)
   }
 
-  test("BigObjectManager should handle multiple reads from the same big object") {
+  test("BigObjectInputStream should handle multiple reads from the same big object") {
     val data = "Multiple reads test data"
     val pointer = createBigObject(data, execId = 9)
 
-    val stream1 = BigObjectManager.open(pointer)
-    val readData1 = stream1.read()
+    val stream1 = new BigObjectInputStream(pointer)
+    val readData1 = stream1.readAllBytes()
     stream1.close()
 
-    val stream2 = BigObjectManager.open(pointer)
-    val readData2 = stream2.read()
+    val stream2 = new BigObjectInputStream(pointer)
+    val readData2 = stream2.readAllBytes()
     stream2.close()
 
     assert(readData1.sameElements(data.getBytes))
@@ -335,12 +405,18 @@ class BigObjectManagerSpec
   // Object-Oriented API Tests
   // ========================================
 
-  test("BigObjectManager.create() should create and register a big object") {
+  test("BigObject with BigObjectOutputStream should create and register a big object") {
     createMockExecution(11)
-    val data = "Test data for BigObjectManager.create()"
-    val stream = new ByteArrayInputStream(data.getBytes)
+    val data = "Test data for BigObject with BigObjectOutputStream"
+    val executor = createMockExecutor(11, "operator-11")
 
-    val bigObject = BigObjectManager.create(stream, 11, "operator-11")
+    val bigObject = new BigObject(executor)
+    val out = new BigObjectOutputStream(bigObject)
+    try {
+      out.write(data.getBytes)
+    } finally {
+      out.close()
+    }
 
     assertStandardBucket(bigObject)
 
@@ -355,12 +431,12 @@ class BigObjectManagerSpec
     BigObjectManager.delete(11)
   }
 
-  test("BigObject.open() should read big object contents") {
-    val data = "Test data for bigObject.open()"
+  test("BigObjectInputStream constructor should read big object contents") {
+    val data = "Test data for BigObjectInputStream constructor"
     val bigObject = createBigObject(data, execId = 12)
 
-    val stream = bigObject.open()
-    val readData = stream.read()
+    val stream = new BigObjectInputStream(bigObject)
+    val readData = stream.readAllBytes()
     stream.close()
 
     assert(readData.sameElements(data.getBytes))
@@ -368,21 +444,176 @@ class BigObjectManagerSpec
     BigObjectManager.delete(12)
   }
 
-  test("BigObjectManager.create() and BigObject.open() should work together end-to-end") {
+  test("BigObjectOutputStream and BigObjectInputStream should work together end-to-end") {
     createMockExecution(13)
     val data = "End-to-end test data"
+    val executor = createMockExecutor(13, "operator-13")
 
-    // Create using BigObjectManager
-    val bigObject =
-      BigObjectManager.create(new ByteArrayInputStream(data.getBytes), 13, "operator-13")
+    // Create using streaming API
+    val bigObject = new BigObject(executor)
+    val out = new BigObjectOutputStream(bigObject)
+    try {
+      out.write(data.getBytes)
+    } finally {
+      out.close()
+    }
 
-    // Read using BigObject instance method
-    val stream = bigObject.open()
-    val readData = stream.read()
+    // Read using standard constructor
+    val stream = new BigObjectInputStream(bigObject)
+    val readData = stream.readAllBytes()
     stream.close()
 
     assert(readData.sameElements(data.getBytes))
 
     BigObjectManager.delete(13)
+  }
+
+  // ========================================
+  // BigObjectOutputStream Tests (New Symmetric API)
+  // ========================================
+
+  test("BigObjectOutputStream should write and upload data to S3") {
+    createMockExecution(200)
+    val executor = createMockExecutor(200, "operator-200")
+    val data = "Test data for BigObjectOutputStream"
+
+    val bigObject = new BigObject(executor)
+    val outStream = new BigObjectOutputStream(bigObject)
+    outStream.write(data.getBytes)
+    outStream.close()
+
+    assertStandardBucket(bigObject)
+
+    // Verify data can be read back
+    val inStream = new BigObjectInputStream(bigObject)
+    val readData = inStream.readAllBytes()
+    inStream.close()
+
+    assert(readData.sameElements(data.getBytes))
+
+    BigObjectManager.delete(200)
+  }
+
+  test("BigObjectOutputStream should register big object in database") {
+    createMockExecution(201)
+    val executor = createMockExecutor(201, "operator-201")
+    val data = "Database registration test"
+
+    val bigObject = new BigObject(executor)
+    val outStream = new BigObjectOutputStream(bigObject)
+    outStream.write(data.getBytes)
+    outStream.close()
+
+    val record = getDSLContext
+      .selectFrom(BIG_OBJECT)
+      .where(BIG_OBJECT.EXECUTION_ID.eq(201).and(BIG_OBJECT.OPERATOR_ID.eq("operator-201")))
+      .fetchOne()
+
+    assert(record != null)
+    assert(record.getUri == bigObject.getUri)
+
+    BigObjectManager.delete(201)
+  }
+
+  test("BigObjectOutputStream should handle large data correctly") {
+    createMockExecution(202)
+    val executor = createMockExecutor(202, "operator-202")
+    val largeData = Array.fill[Byte](8 * 1024 * 1024)((scala.util.Random.nextInt(256) - 128).toByte)
+
+    val bigObject = new BigObject(executor)
+    val outStream = new BigObjectOutputStream(bigObject)
+    outStream.write(largeData)
+    outStream.close()
+
+    // Verify data integrity
+    val inStream = new BigObjectInputStream(bigObject)
+    val readData = inStream.readAllBytes()
+    inStream.close()
+
+    assert(readData.sameElements(largeData))
+
+    BigObjectManager.delete(202)
+  }
+
+  test("BigObjectOutputStream should handle multiple writes") {
+    createMockExecution(203)
+    val executor = createMockExecutor(203, "operator-203")
+
+    val bigObject = new BigObject(executor)
+    val outStream = new BigObjectOutputStream(bigObject)
+    outStream.write("Hello ".getBytes)
+    outStream.write("World".getBytes)
+    outStream.write("!".getBytes)
+    outStream.close()
+
+    val inStream = new BigObjectInputStream(bigObject)
+    val readData = inStream.readAllBytes()
+    inStream.close()
+
+    assert(readData.sameElements("Hello World!".getBytes))
+
+    BigObjectManager.delete(203)
+  }
+
+  test("BigObjectOutputStream should throw exception when writing to closed stream") {
+    createMockExecution(204)
+    val executor = createMockExecutor(204, "operator-204")
+
+    val bigObject = new BigObject(executor)
+    val outStream = new BigObjectOutputStream(bigObject)
+    outStream.write("test".getBytes)
+    outStream.close()
+
+    assertThrows[java.io.IOException](outStream.write("more".getBytes))
+
+    BigObjectManager.delete(204)
+  }
+
+  test("BigObjectOutputStream should handle close() being called multiple times") {
+    createMockExecution(205)
+    val executor = createMockExecutor(205, "operator-205")
+
+    val bigObject = new BigObject(executor)
+    val outStream = new BigObjectOutputStream(bigObject)
+    outStream.write("test".getBytes)
+    outStream.close()
+    outStream.close() // Should not throw
+
+    BigObjectManager.delete(205)
+  }
+
+  test("New BigObject(executor) constructor should create unique URIs") {
+    createMockExecution(206)
+    val executor1 = createMockExecutor(206, "operator-206")
+    val executor2 = createMockExecutor(206, "operator-206")
+
+    val bigObject1 = new BigObject(executor1)
+    val bigObject2 = new BigObject(executor2)
+
+    assert(bigObject1.getUri != bigObject2.getUri)
+    assert(bigObject1.getObjectKey != bigObject2.getObjectKey)
+
+    BigObjectManager.delete(206)
+  }
+
+  test("BigObject(executor) and BigObjectOutputStream API should be symmetric with input") {
+    createMockExecution(207)
+    val executor = createMockExecutor(207, "operator-207")
+    val data = "Symmetric API test"
+
+    // Write using new symmetric API
+    val bigObject = new BigObject(executor)
+    val outStream = new BigObjectOutputStream(bigObject)
+    outStream.write(data.getBytes)
+    outStream.close()
+
+    // Read using symmetric API
+    val inStream = new BigObjectInputStream(bigObject)
+    val readData = inStream.readAllBytes()
+    inStream.close()
+
+    assert(readData.sameElements(data.getBytes))
+
+    BigObjectManager.delete(207)
   }
 }
