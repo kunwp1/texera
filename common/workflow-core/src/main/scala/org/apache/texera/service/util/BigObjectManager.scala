@@ -60,8 +60,7 @@ object BigObjectManager extends LazyLogging {
       logger.info(s"Successfully deleted all big objects from bucket: $DEFAULT_BUCKET")
     } catch {
       case e: Exception =>
-        logger.error(s"Failed to delete big objects from bucket: $DEFAULT_BUCKET", e)
-        throw e
+        logger.warn(s"Failed to delete big objects from bucket: $DEFAULT_BUCKET", e)
     }
   }
 
