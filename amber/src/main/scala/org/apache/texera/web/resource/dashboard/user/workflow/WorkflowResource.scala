@@ -601,7 +601,7 @@ class WorkflowResource extends LazyLogging {
         .asScala
         .toList
 
-      BigObjectManager.delete()
+      BigObjectManager.deleteAllObjects()
 
       // Collect all URIs related to executions for cleanup
       val uris = eids.flatMap { eid =>

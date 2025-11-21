@@ -346,6 +346,6 @@ class WorkflowService(
       }
     }
     // Delete big objects
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 }

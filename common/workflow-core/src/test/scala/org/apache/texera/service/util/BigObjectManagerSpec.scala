@@ -54,7 +54,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     assert(stream.readAllBytes().sameElements(data.getBytes))
     stream.close()
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectInputStream should read exact number of bytes") {
@@ -67,7 +67,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     assert(result.sameElements("0123456789".getBytes))
     stream.close()
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectInputStream should handle reading more bytes than available") {
@@ -81,7 +81,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     assert(result.sameElements(data.getBytes))
     stream.close()
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectInputStream should support standard single-byte read") {
@@ -94,7 +94,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     assert(stream.read() == -1) // EOF
     stream.close()
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectInputStream should return -1 at EOF") {
@@ -105,7 +105,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     assert(stream.read() == -1)
     stream.close()
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectInputStream should throw exception when reading from closed stream") {
@@ -117,7 +117,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     assertThrows[java.io.IOException](stream.read())
     assertThrows[java.io.IOException](stream.readAllBytes())
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectInputStream should handle multiple close calls") {
@@ -127,7 +127,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     stream.close()
     stream.close() // Should not throw
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectInputStream should read large data correctly") {
@@ -145,7 +145,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     assert(result.sameElements(largeData))
     stream.close()
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   // ========================================
@@ -200,18 +200,18 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
       out2.close()
     }
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectManager should handle delete with no objects gracefully") {
-    BigObjectManager.delete() // Should not throw exception
+    BigObjectManager.deleteAllObjects() // Should not throw exception
   }
 
   test("BigObjectManager should delete all objects") {
     val pointer1 = createBigObject("Test data")
     val pointer2 = createBigObject("Test data")
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectManager should create bucket if it doesn't exist") {
@@ -219,7 +219,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
 
     assertStandardBucket(pointer)
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectManager should handle large objects correctly") {
@@ -237,7 +237,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     stream.close()
 
     assert(readData.sameElements(largeData))
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectManager should generate unique URIs for different objects") {
@@ -261,7 +261,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     assert(pointer1.getUri != pointer2.getUri)
     assert(pointer1.getObjectKey != pointer2.getObjectKey)
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectInputStream should handle multiple reads from the same big object") {
@@ -279,7 +279,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     assert(readData1.sameElements(data.getBytes))
     assert(readData2.sameElements(data.getBytes))
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectManager should properly parse bucket name and object key from big object") {
@@ -289,7 +289,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     assert(bigObject.getObjectKey.nonEmpty)
     assert(!bigObject.getObjectKey.startsWith("/"))
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   // ========================================
@@ -309,7 +309,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
 
     assertStandardBucket(bigObject)
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectInputStream constructor should read big object contents") {
@@ -322,7 +322,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
 
     assert(readData.sameElements(data.getBytes))
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectOutputStream and BigObjectInputStream should work together end-to-end") {
@@ -344,7 +344,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
 
     assert(readData.sameElements(data.getBytes))
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   // ========================================
@@ -368,7 +368,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
 
     assert(readData.sameElements(data.getBytes))
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectOutputStream should create big object") {
@@ -381,7 +381,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
 
     assertStandardBucket(bigObject)
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectOutputStream should handle large data correctly") {
@@ -399,7 +399,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
 
     assert(readData.sameElements(largeData))
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectOutputStream should handle multiple writes") {
@@ -416,7 +416,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
 
     assert(readData.sameElements("Hello World!".getBytes))
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectOutputStream should throw exception when writing to closed stream") {
@@ -427,7 +427,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
 
     assertThrows[java.io.IOException](outStream.write("more".getBytes))
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObjectOutputStream should handle close() being called multiple times") {
@@ -437,7 +437,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     outStream.close()
     outStream.close() // Should not throw
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("New BigObject() constructor should create unique URIs") {
@@ -447,7 +447,7 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
     assert(bigObject1.getUri != bigObject2.getUri)
     assert(bigObject1.getObjectKey != bigObject2.getObjectKey)
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 
   test("BigObject() and BigObjectOutputStream API should be symmetric with input") {
@@ -466,6 +466,6 @@ class BigObjectManagerSpec extends AnyFunSuite with S3StorageTestBase {
 
     assert(readData.sameElements(data.getBytes))
 
-    BigObjectManager.delete()
+    BigObjectManager.deleteAllObjects()
   }
 }

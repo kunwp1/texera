@@ -26,9 +26,8 @@ import java.util.UUID
 /**
   * Manages the lifecycle of BigObjects stored in S3.
   *
-  * Handles creation, tracking, and cleanup of large objects that exceed
-  * normal tuple size limits. Objects are automatically cleaned up when
-  * their associated workflow execution completes.
+  * Handles creation and deletion of large objects that exceed
+  * normal tuple size limits.
   */
 object BigObjectManager extends LazyLogging {
   private val DEFAULT_BUCKET = "texera-big-objects"
@@ -54,7 +53,7 @@ object BigObjectManager extends LazyLogging {
     * @throws Exception if the deletion fails
     * @return Unit
     */
-  def delete(): Unit = {
+  def deleteAllObjects(): Unit = {
     try {
       S3StorageClient.deleteDirectory(DEFAULT_BUCKET, "objects")
       logger.info(s"Successfully deleted all big objects from bucket: $DEFAULT_BUCKET")
