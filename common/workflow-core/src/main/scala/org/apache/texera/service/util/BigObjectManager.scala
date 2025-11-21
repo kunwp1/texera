@@ -20,13 +20,8 @@
 package org.apache.texera.service.util
 
 import com.typesafe.scalalogging.LazyLogging
-import org.apache.amber.core.executor.OperatorExecutor
-import org.apache.amber.core.tuple.BigObject
-import org.apache.texera.dao.SqlServer
-import org.apache.texera.dao.jooq.generated.Tables.BIG_OBJECT
 
 import java.util.UUID
-import scala.jdk.CollectionConverters._
 
 /**
   * Manages the lifecycle of BigObjects stored in S3.
@@ -37,72 +32,37 @@ import scala.jdk.CollectionConverters._
   */
 object BigObjectManager extends LazyLogging {
   private val DEFAULT_BUCKET = "texera-big-objects"
-  private lazy val db = SqlServer.getInstance().createDSLContext()
 
   /**
-    * Creates a new BigObject reference and registers it for tracking.
+    * Creates a new BigObject reference.
     * The actual data upload happens separately via BigObjectOutputStream.
     *
-    * @param executor The operator executor providing execution context
     * @return S3 URI string for the new BigObject (format: s3://bucket/key)
-    * @throws RuntimeException if database registration fails
     */
-  def create(executor: OperatorExecutor): String = {
+  def create(): String = {
     S3StorageClient.createBucketIfNotExist(DEFAULT_BUCKET)
 
-    val objectKey = s"${System.currentTimeMillis()}/${UUID.randomUUID()}"
+    val objectKey = s"objects/${System.currentTimeMillis()}/${UUID.randomUUID()}"
     val uri = s"s3://$DEFAULT_BUCKET/$objectKey"
-
-    try {
-      db.insertInto(BIG_OBJECT)
-        .columns(BIG_OBJECT.EXECUTION_ID, BIG_OBJECT.OPERATOR_ID, BIG_OBJECT.URI)
-        .values(Int.box(executor.executionId), executor.operatorId, uri)
-        .execute()
-
-      logger.debug(
-        s"Created BigObject: eid=${executor.executionId}, opid=${executor.operatorId}, uri=$uri"
-      )
-    } catch {
-      case e: Exception =>
-        throw new RuntimeException(s"Failed to register BigObject in database: ${e.getMessage}", e)
-    }
 
     uri
   }
 
   /**
-    * Deletes all BigObjects associated with an execution.
-    * Removes both the S3 objects and database records.
+    * Deletes all big objects from the bucket.
     *
-    * @param executionId The execution ID whose BigObjects should be deleted
+    * @throws Exception if the deletion fails
+    * @return Unit
     */
-  def delete(executionId: Int): Unit = {
-    val uris = db
-      .select(BIG_OBJECT.URI)
-      .from(BIG_OBJECT)
-      .where(BIG_OBJECT.EXECUTION_ID.eq(executionId))
-      .fetchInto(classOf[String])
-      .asScala
-      .toList
-
-    if (uris.isEmpty) {
-      logger.debug(s"No BigObjects found for execution $executionId")
-      return
+  def delete(): Unit = {
+    try {
+      S3StorageClient.deleteDirectory(DEFAULT_BUCKET, "objects")
+      logger.info(s"Successfully deleted all big objects from bucket: $DEFAULT_BUCKET")
+    } catch {
+      case e: Exception =>
+        logger.error(s"Failed to delete big objects from bucket: $DEFAULT_BUCKET", e)
+        throw e
     }
-
-    logger.info(s"Deleting ${uris.size} BigObject(s) for execution $executionId")
-
-    uris.foreach { uri =>
-      try {
-        val bigObject = new BigObject(uri)
-        S3StorageClient.deleteObject(bigObject.getBucketName, bigObject.getObjectKey)
-      } catch {
-        case e: Exception => logger.error(s"Failed to delete BigObject from S3: $uri", e)
-      }
-    }
-
-    db.deleteFrom(BIG_OBJECT)
-      .where(BIG_OBJECT.EXECUTION_ID.eq(executionId))
-      .execute()
   }
+
 }

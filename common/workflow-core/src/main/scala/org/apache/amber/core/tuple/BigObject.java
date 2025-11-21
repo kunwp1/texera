@@ -60,20 +60,19 @@ public class BigObject {
     
     /**
      * Creates a new BigObject for writing data.
-     * Generates a unique S3 URI and registers it with the execution context.
+     * Generates a unique S3 URI.
      * 
      * Usage example:
      * 
-     *   BigObject bigObject = new BigObject(executor);
+     *   BigObject bigObject = new BigObject();
      *   try (BigObjectOutputStream out = new BigObjectOutputStream(bigObject)) {
      *     out.write(data);
      *   }
      *   // bigObject is now ready to be added to tuples
      * 
-     * @param executor The operator executor providing execution context
      */
-    public BigObject(OperatorExecutor executor) {
-        this(BigObjectManager.create(executor));
+    public BigObject() {
+        this(BigObjectManager.create());
     }
     
     @JsonValue

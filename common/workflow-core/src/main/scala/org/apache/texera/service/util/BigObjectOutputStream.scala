@@ -35,7 +35,7 @@ import scala.concurrent.duration.Duration
   *
   * Usage:
   * {{{
-  *   val bigObject = new BigObject(executor)
+  *   val bigObject = new BigObject()
   *   try (val out = new BigObjectOutputStream(bigObject)) {
   *     out.write(myBytes)
   *   }

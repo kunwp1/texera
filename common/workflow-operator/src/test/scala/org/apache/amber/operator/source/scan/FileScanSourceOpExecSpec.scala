@@ -125,7 +125,6 @@ class FileScanSourceOpExecSpec extends AnyFlatSpec with BeforeAndAfterAll {
     desc.setResolvedFileName(URI.create(testFile.toUri.toString))
 
     val executor = new FileScanSourceOpExec(objectMapper.writeValueAsString(desc))
-    executor.initializeExecutionContext(1, "test-op")
 
     try {
       executor.open()

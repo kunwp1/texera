@@ -194,8 +194,7 @@ class WorkerSpec
       InitializeExecutorRequest(
         1,
         OpExecWithClassName("org.apache.amber.engine.architecture.worker.DummyOperatorExecutor"),
-        isSource = false,
-        1
+        isSource = false
       ),
       AsyncRPCContext(CONTROLLER, identifier1),
       4

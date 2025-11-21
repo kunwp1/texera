@@ -345,9 +345,7 @@ class WorkflowService(
           logger.debug(s"Error processing document at $uri: ${error.getMessage}")
       }
     }
-
     // Delete big objects
-    BigObjectManager.delete(eid.id.toInt)
+    BigObjectManager.delete()
   }
-
 }

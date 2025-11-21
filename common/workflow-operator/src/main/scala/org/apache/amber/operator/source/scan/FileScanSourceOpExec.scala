@@ -87,7 +87,7 @@ class FileScanSourceOpExec private[scan] (
                 new String(toByteArray(entry), desc.fileEncoding.getCharset)
               case FileAttributeType.BIG_OBJECT =>
                 // For big objects, create reference and upload via streaming
-                val bigObject = new BigObject(FileScanSourceOpExec.this)
+                val bigObject = new BigObject()
                 val out = new BigObjectOutputStream(bigObject)
                 try {
                   val buffer = new Array[Byte](8192)
