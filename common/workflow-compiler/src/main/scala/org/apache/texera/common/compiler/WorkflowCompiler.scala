@@ -23,7 +23,8 @@ import com.google.protobuf.timestamp.Timestamp
 import com.typesafe.scalalogging.{LazyLogging, Logger}
 import org.apache.texera.common.compiler.WorkflowCompiler.{
   collectOutputSchemaFromPhysicalPlan,
-  convertErrorListToWorkflowFatalErrorMap
+  convertErrorListToWorkflowFatalErrorMap,
+  offloadPlanner
 }
 import org.apache.texera.common.compiler.model.{LogicalPlan, LogicalPlanPojo}
 import org.apache.texera.amber.core.tuple.Schema
@@ -46,6 +47,13 @@ import scala.jdk.CollectionConverters.IteratorHasAsScala
 import scala.util.{Failure, Success, Try}
 
 object WorkflowCompiler {
+
+  // Shared rather than rebuilt per WorkflowCompiler (the editing path constructs
+  // one per compile request). OffloadPlanner.fromConfig is the single wiring
+  // point, so this path cannot disagree with the runtime path about the catalog,
+  // the safety factor, or the enable gate.
+  private def offloadPlanner: OffloadPlanner = OffloadPlanner.fromConfig
+
   // util function to convert the error list to an error map, and report the errors in the log
   private def convertErrorListToWorkflowFatalErrorMap(
       logger: Logger,
@@ -150,6 +158,11 @@ class WorkflowCompiler(
       Try {
         val logicalOp = logicalPlan.getOperator(logicalOpId)
         val upstreamLinks = logicalPlan.getUpstreamLinks(logicalOp.operatorIdentifier)
+
+        // Validate any offload declaration here so a bad one (unknown instance
+        // type, or Manual mode with nothing selected) is reported per-operator in
+        // the editor, rather than at execution time after the user is committed.
+        offloadPlanner.validateIfOffloaded(logicalOp)
 
         val subPlan = logicalOp.getPhysicalPlan(context.workflowId, context.executionId)
         subPlan

@@ -246,6 +246,11 @@ trait RegionExecutionManagerTestSupport { self: TestKit =>
     val coordinatorRef = TestActorRef(new CoordinatorHarness)
     coordinatorRef.underlyingActor.actorService.getAvailableNodeAddressesFunc = () =>
       Array(coordinatorRef.path.address)
+    // Also stub the general-placement hook. Its default delegates to a
+    // cluster-info actor these specs never create, so a future spec that reaches
+    // buildOperator would hit a 5-second ask timeout rather than a clear failure.
+    coordinatorRef.underlyingActor.actorService.getGeneralPlacementAddressesFunc = () =>
+      Array(coordinatorRef.path.address)
     CoordinatorHarnessFixture(
       actorService = coordinatorRef.underlyingActor.actorService,
       actorRefService = coordinatorRef.underlyingActor.actorRefMappingService

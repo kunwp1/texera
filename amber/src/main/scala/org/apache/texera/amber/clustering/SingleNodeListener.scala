@@ -20,10 +20,17 @@
 package org.apache.texera.amber.clustering
 
 import org.apache.pekko.actor.{Actor, ActorLogging}
-import org.apache.texera.amber.clustering.ClusterListener.GetAvailableNodeAddresses
+import org.apache.texera.amber.clustering.ClusterListener.{
+  GetAvailableNodeAddresses,
+  GetGeneralPlacementAddresses
+}
 
 class SingleNodeListener extends Actor with ActorLogging {
   override def receive: Receive = {
     case GetAvailableNodeAddresses() => sender() ! Array(context.self.path.address)
+    // Single-node mode has no rented offload nodes, so the general placement pool
+    // is the same single address. Answering explicitly matters: an unhandled ask
+    // would leave the caller waiting out its timeout instead.
+    case GetGeneralPlacementAddresses() => sender() ! Array(context.self.path.address)
   }
 }

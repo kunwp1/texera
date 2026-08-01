@@ -19,10 +19,8 @@
 
 package org.apache.texera.amber.engine.architecture.common
 
-import org.apache.pekko.actor.{Actor, ActorRef, Address, Stash}
-import org.apache.pekko.pattern.ask
-import org.apache.pekko.util.Timeout
-import org.apache.texera.amber.clustering.ClusterListener.GetAvailableNodeAddresses
+import org.apache.pekko.actor.{Actor, ActorRef, Stash}
+import org.apache.texera.amber.clustering.ClusterListener
 import org.apache.texera.amber.core.virtualidentity.{ActorVirtualIdentity, ChannelIdentity}
 import org.apache.texera.amber.engine.architecture.common.WorkflowActor._
 import org.apache.texera.amber.engine.architecture.logreplay.{
@@ -41,7 +39,6 @@ import org.apache.texera.amber.engine.common.ambermessage.WorkflowFIFOMessage
 import org.apache.texera.amber.engine.common.storage.SequentialRecordStorage
 import org.apache.texera.amber.engine.common.{AmberLogging, CheckpointState}
 
-import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 
 object WorkflowActor {
@@ -86,15 +83,9 @@ abstract class WorkflowActor(
   // Pekko related components:
   //
   val actorService: PekkoActorService = new PekkoActorService(actorId, this.context)
-  actorService.getAvailableNodeAddressesFunc = () => {
-    implicit val timeout: Timeout = 5.seconds
-    Await
-      .result(
-        context.actorSelection("/user/cluster-info") ? GetAvailableNodeAddresses(),
-        5.seconds
-      )
-      .asInstanceOf[Array[Address]]
-  }
+  actorService.getAvailableNodeAddressesFunc = () => ClusterListener.availableNodeAddresses(context)
+  actorService.getGeneralPlacementAddressesFunc = () =>
+    ClusterListener.generalPlacementAddresses(context)
   val actorRefMappingService: PekkoActorRefMappingService = new PekkoActorRefMappingService(
     actorService
   )

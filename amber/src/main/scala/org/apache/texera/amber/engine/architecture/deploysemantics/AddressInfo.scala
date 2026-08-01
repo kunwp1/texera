@@ -21,8 +21,25 @@ package org.apache.texera.amber.engine.architecture.deploysemantics
 
 import org.apache.pekko.actor.Address
 
-// Holds worker and coordinator node addresses.
+/**
+  * Holds worker and coordinator node addresses.
+  *
+  * @param allAddresses            every cluster member, including nodes rented for
+  *                                a single offloaded operator. Pinned placement
+  *                                resolves against this, so it must stay complete.
+  * @param coordinatorAddress      the coordinator node
+  * @param generalPlacementAddresses members eligible for round-robin placement.
+  *                                Excludes dedicated offload nodes: each is sized
+  *                                for one operator, so a co-tenant's workers would
+  *                                invalidate that sizing and could OOM-kill it.
+  *                                Defaults to `allAddresses` for callers (e.g.
+  *                                tests) with no dedicated nodes.
+  */
 case class AddressInfo(
-    allAddresses: Array[Address], // e.g., Node 1, Node 2, Node 3
-    coordinatorAddress: Address // Coordinator node
-)
+    allAddresses: Array[Address],
+    coordinatorAddress: Address,
+    private val generalPlacementAddressesOpt: Option[Array[Address]] = None
+) {
+  def generalPlacementAddresses: Array[Address] =
+    generalPlacementAddressesOpt.getOrElse(allAddresses)
+}

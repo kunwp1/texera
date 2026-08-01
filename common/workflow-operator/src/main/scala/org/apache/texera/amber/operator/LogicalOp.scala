@@ -23,6 +23,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes.Type
 import com.fasterxml.jackson.annotation._
 import com.kjetland.jackson.jsonSchema.annotations.JsonSchemaTitle
 import org.apache.texera.amber.core.executor.OperatorExecutor
+import org.apache.texera.amber.core.offload.OffloadConfig
 import org.apache.texera.amber.core.tuple.Schema
 import org.apache.texera.amber.core.virtualidentity.{
   ExecutionIdentity,
@@ -490,6 +491,23 @@ abstract class LogicalOp extends PortDescriptor with Serializable {
   @JsonSchemaTitle("Dummy Property List")
   @JsonPropertyDescription("Add dummy property if needed")
   var dummyPropertyList: List[DummyProperties] = List()
+
+  /**
+    * Whether this operator runs on its own rented cloud instance, and how that
+    * instance is sized.
+    *
+    * Defaults to disabled, so operators and workflows saved before this feature
+    * existed keep running on the shared cluster unchanged.
+    */
+  @JsonProperty
+  @JsonSchemaTitle("Run on a rented instance")
+  @JsonPropertyDescription(
+    "Runs this operator by itself on a rented machine instead of the shared cluster"
+  )
+  var offload: OffloadConfig = OffloadConfig()
+
+  @JsonIgnore
+  def isOffloaded: Boolean = offload != null && offload.isOffloaded
 
   /**
     * Propagates the schema from external input ports to external output ports.

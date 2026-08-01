@@ -27,7 +27,7 @@ import java.util.function.Supplier
 import java.util.{Optional, List => JList}
 import javax.validation.constraints._
 import javax.validation.groups.Default
-import scala.jdk.CollectionConverters.{CollectionHasAsScala, MapHasAsScala}
+import scala.jdk.CollectionConverters.{CollectionHasAsScala, IteratorHasAsScala, MapHasAsScala}
 
 object JsonSchemaGenerator {}
 
@@ -1672,8 +1672,36 @@ class JsonSchemaGenerator(
       ()
     }
 
+    dropNullableWithoutType(rootNode)
+
     rootNode
 
+  }
+
+  /**
+    * Strips `nullable` from every node that carries no `type`.
+    *
+    * The nullable branch above stamps `nullable: true` on a property before the
+    * child visitor knows how the property will be rendered. For a complex type
+    * that turns out to be a bare `$ref` (or a `oneOf` over refs), the result is a
+    * node with `nullable` and no `type`. Ajv rejects exactly that shape, and the
+    * frontend compiles every operator schema with Ajv before it can place the
+    * operator on the canvas, so one such node breaks operator creation for the
+    * whole palette rather than just for the property that produced it.
+    *
+    * Dropping the keyword loses nothing: draft-07 ignores every keyword that sits
+    * beside a `$ref`, so the `nullable` was already inert wherever it collided
+    * with one. Nodes that do declare a `type` keep it -- there Ajv honours it and
+    * it genuinely widens the accepted values.
+    */
+  private def dropNullableWithoutType(node: JsonNode): Unit = {
+    node match {
+      case o: ObjectNode =>
+        if (o.has("nullable") && !o.has("type")) o.remove("nullable")
+        o.elements().asScala.foreach(dropNullableWithoutType)
+      case a: ArrayNode => a.elements().asScala.foreach(dropNullableWithoutType)
+      case _            => ()
+    }
   }
 
   implicit class JsonNodeExtension(o: JsonNode) {

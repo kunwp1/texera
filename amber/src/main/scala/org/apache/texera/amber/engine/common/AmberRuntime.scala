@@ -72,20 +72,30 @@ object AmberRuntime {
   }
 
   def startActorMaster(clusterMode: Boolean): Unit = {
-    var localIpAddress = "localhost"
-    if (clusterMode) {
-      localIpAddress = getNodeIpAddress
+    // What peers dial to reach this node, which is not necessarily what it binds
+    // to. Offloaded workers run in their own network namespace, where "localhost"
+    // is the worker itself -- so the coordinator has to advertise a name reachable
+    // from outside. Explicit config wins; otherwise fall back to the old
+    // behaviour (public IP in cluster mode, localhost when standalone).
+    val advertisedHost = AmberConfig.advertisedHostname.getOrElse {
+      if (clusterMode) getNodeIpAddress else "localhost"
     }
 
+    // Bind on every interface so the node is reachable however a peer routes to
+    // it (loopback for same-host clients, the Docker bridge for containers).
+    // Binding only to the advertised name would make a container-reachable
+    // address unreachable from the host, and vice versa.
     val masterConfig = ConfigFactory
       .parseString(s"""
         pekko.remote.artery.canonical.port = 2552
-        pekko.remote.artery.canonical.hostname = $localIpAddress
-        pekko.cluster.seed-nodes = [ "pekko://Amber@$localIpAddress:2552" ]
+        pekko.remote.artery.canonical.hostname = $advertisedHost
+        pekko.remote.artery.bind.hostname = "0.0.0.0"
+        pekko.remote.artery.bind.port = 2552
+        pekko.cluster.seed-nodes = [ "pekko://Amber@$advertisedHost:2552" ]
         """)
       .withFallback(pekkoConfig)
       .resolve()
-    AmberConfig.masterNodeAddr = createMasterAddress(localIpAddress)
+    AmberConfig.masterNodeAddr = createMasterAddress(advertisedHost)
     createAmberSystem(masterConfig)
   }
 
@@ -95,21 +105,46 @@ object AmberRuntime {
 
   def startActorWorker(mainNodeAddress: Option[String]): Unit = {
     val addr = mainNodeAddress.getOrElse("localhost")
-    var localIpAddress = "localhost"
-    if (mainNodeAddress.isDefined) {
-      localIpAddress = getNodeIpAddress
+    // Inside a container the old getNodeIpAddress call returns the host's PUBLIC
+    // IP (it asks an external echo service), which the coordinator cannot route
+    // back to. An offloaded worker therefore advertises the name its coordinator
+    // can actually reach -- set explicitly by the provider.
+    val localIpAddress = AmberConfig.advertisedHostname.getOrElse {
+      if (mainNodeAddress.isDefined) getNodeIpAddress else "localhost"
     }
+    // A node rented for one offloaded operator declares the dedicated role, so
+    // general round-robin placement can exclude it. Without that, another
+    // operator's workers land inside the cgroup sized for the offloaded one --
+    // which both invalidates its memory sizing and can get it OOM-killed.
+    val roles =
+      if (AmberConfig.isDedicatedOffloadNode) s"""pekko.cluster.roles = ["$DedicatedOffloadRole"]"""
+      else ""
+    // A fixed port when one is configured: an offloaded worker in its own network
+    // namespace must be reachable at a port the coordinator can predict and
+    // publish, which an ephemeral port (0) cannot provide.
+    val port = AmberConfig.advertisedPort.getOrElse(0)
     val workerConfig = ConfigFactory
       .parseString(s"""
         pekko.remote.artery.canonical.hostname = $localIpAddress
-        pekko.remote.artery.canonical.port = 0
+        pekko.remote.artery.canonical.port = $port
+        pekko.remote.artery.bind.hostname = "0.0.0.0"
+        pekko.remote.artery.bind.port = $port
         pekko.cluster.seed-nodes = [ "pekko://Amber@$addr:2552" ]
+        $roles
         """)
       .withFallback(pekkoConfig)
       .resolve()
     AmberConfig.masterNodeAddr = createMasterAddress(addr)
     createAmberSystem(workerConfig)
   }
+
+  /**
+    * Pekko cluster role marking a node rented for a single offloaded operator.
+    *
+    * Such a node is sized for exactly one operator, so it must not receive workers
+    * from the general placement pool.
+    */
+  val DedicatedOffloadRole: String = "dedicated-offload"
 
   private def createAmberSystem(actorSystemConf: Config): Unit = {
     _actorSystem = ActorSystem("Amber", actorSystemConf)

@@ -28,6 +28,7 @@ import com.kjetland.jackson.jsonSchema.{JsonSchemaConfig, JsonSchemaDraft, JsonS
 import org.apache.texera.amber.core.workflow.OutputPort.OutputMode
 import org.apache.texera.amber.core.workflow.{InputPort, OutputPort}
 import org.apache.texera.amber.operator.LogicalOp
+import org.apache.texera.amber.operator.metadata.annotations.OffloadSchemaSupplier
 import org.apache.texera.amber.operator.source.scan.csv.CSVScanSourceOpDesc
 import org.apache.texera.amber.util.JSONUtils.objectMapper
 
@@ -140,6 +141,12 @@ object OperatorMetadataGenerator {
     jsonSchema.get("required").asInstanceOf[ArrayNode].remove(operatorTypeIndex)
     // remove "title" for the operator - frontend uses userFriendlyName to show operator title
     jsonSchema.remove("title")
+    // Shape the offload block: label the machine list from the real catalog, gate
+    // the sizing fields behind the toggle, and drop the field that cannot yet
+    // affect the outcome. Applied here, on the generated OffloadConfig definition,
+    // because the offload property itself is a bare $ref and draft-07 ignores
+    // keywords beside a $ref.
+    OffloadSchemaSupplier.refine(jsonSchema)
     jsonSchema
   }
 

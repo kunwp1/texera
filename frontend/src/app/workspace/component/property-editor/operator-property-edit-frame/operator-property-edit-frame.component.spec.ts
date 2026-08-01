@@ -1708,6 +1708,76 @@ describe("OperatorPropertyEditFrameComponent", () => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────
+  // Per-operator cloud-offload controls.
+  //
+  // The offload block is added to every operator's schema server-side
+  // (LogicalOp.offload). The property panel builds its form from that schema via
+  // ngx-formly's json-schema mapper, so these tests feed a schema shaped exactly
+  // like the generated one and assert the offload toggle and the sizing-mode
+  // dropdown actually become form fields -- rather than assuming the auto-render
+  // works.
+  // ──────────────────────────────────────────────────────────────────────────
+  describe("cloud-offload controls render from the operator schema", () => {
+    function getField(key: string): FormlyFieldConfig | undefined {
+      return component.formlyFields?.[0]?.fieldGroup?.find(f => f.key === key);
+    }
+
+    // Mirrors what OperatorMetadataGenerator emits for LogicalOp.offload after
+    // the OffloadConfig $ref is resolved: an object property whose nested
+    // sizingMode carries the injected enum.
+    const offloadSchema: CustomJSONSchema7 = {
+      type: "object",
+      properties: {
+        offload: {
+          type: "object",
+          title: "Offload to Cloud Instance",
+          description: "Run this operator alone on a rented cloud instance sized for its memory needs",
+          properties: {
+            enabled: { type: "boolean", title: "Enabled" },
+            instanceType: { type: "string", title: "Instance Type" },
+            sizingMode: { type: "string", title: "Sizing Mode", enum: ["Manual", "Advised"] },
+            safetyFactor: { type: "number", title: "Safety Factor" },
+          },
+        } as CustomJSONSchema7,
+      },
+    };
+
+    it("renders the offload property as a nested field group", () => {
+      component.setFormlyFormBinding(offloadSchema);
+      const offloadField = getField("offload");
+      expect(offloadField).toBeDefined();
+      expect(offloadField?.fieldGroup).toBeDefined();
+    });
+
+    it("renders the offload toggle and instance-type inputs", () => {
+      component.setFormlyFormBinding(offloadSchema);
+      const nested = getField("offload")?.fieldGroup ?? [];
+      expect(nested.find(f => f.key === "enabled")).toBeDefined();
+      expect(nested.find(f => f.key === "instanceType")).toBeDefined();
+    });
+
+    it("renders sizingMode as an enum dropdown with Manual and Advised", () => {
+      component.setFormlyFormBinding(offloadSchema);
+      const sizingMode = getField("offload")?.fieldGroup?.find(f => f.key === "sizingMode");
+      expect(sizingMode).toBeDefined();
+      // ngx-formly maps a string enum to a select whose options are the enum
+      // values; that is what makes it a dropdown rather than a free-text box.
+      const options = (sizingMode?.props as any)?.options ?? (sizingMode?.templateOptions as any)?.options;
+      const values = (options ?? []).map((o: any) => o.value ?? o.label ?? o);
+      expect(values).toContain("Manual");
+      expect(values).toContain("Advised");
+    });
+
+    it("guards against sizingMode degrading to a free-text field", () => {
+      // If the enum were dropped from the schema, formly would render a plain
+      // input -- the exact regression this feature must avoid.
+      component.setFormlyFormBinding(offloadSchema);
+      const sizingMode = getField("offload")?.fieldGroup?.find(f => f.key === "sizingMode");
+      expect(sizingMode?.type).not.toBe("input");
+    });
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
   // Operator-type-specific field behavior (FileScanOp hide, Projection reorder)
   // ──────────────────────────────────────────────────────────────────────────
   describe("operator-type-specific field behavior", () => {

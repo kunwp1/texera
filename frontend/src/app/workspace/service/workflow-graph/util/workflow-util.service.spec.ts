@@ -22,7 +22,11 @@ import { OperatorMetadataService } from "./../../operator-metadata/operator-meta
 import { inject, TestBed } from "@angular/core/testing";
 
 import { WorkflowUtilService } from "./workflow-util.service";
-import { mockMultiInputOutputSchema, mockScanSourceSchema } from "../../operator-metadata/mock-operator-metadata.data";
+import {
+  mockMultiInputOutputSchema,
+  mockNestedConfigSchema,
+  mockScanSourceSchema,
+} from "../../operator-metadata/mock-operator-metadata.data";
 import { commonTestProviders } from "../../../../common/testing/test-utils";
 import { OperatorPredicate } from "../../../types/workflow-common.interface";
 import { ExecutionMode, Workflow, WorkflowContent } from "../../../../common/type/workflow";
@@ -47,6 +51,17 @@ describe("WorkflowUtilService", () => {
   it("should be created", inject([WorkflowUtilService], (service: WorkflowUtilService) => {
     expect(service).toBeTruthy();
   }));
+
+  it("should be able to create an operator whose schema uses a $ref to a nested config", () => {
+    // getNewOperatorPredicate compiles the schema with Ajv. Ajv refuses to compile
+    // a node carrying `nullable` without `type` -- the shape the schema generator
+    // produces for a bare `$ref` -- and the throw blocks every operator from being
+    // added to the canvas, not just the one that owns the offending property.
+    expect(() => workflowUtilService.getNewOperatorPredicate(mockNestedConfigSchema.operatorType)).not.toThrow();
+
+    const operatorPredicate = workflowUtilService.getNewOperatorPredicate(mockNestedConfigSchema.operatorType);
+    expect(operatorPredicate.operatorType).toEqual(mockNestedConfigSchema.operatorType);
+  });
 
   it("should be able to generate an operator predicate properly given a valid operator type", () => {
     const operatorSchema = mockScanSourceSchema;

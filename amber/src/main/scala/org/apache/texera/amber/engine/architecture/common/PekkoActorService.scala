@@ -39,8 +39,22 @@ class PekkoActorService(val id: ActorVirtualIdentity, actorContext: ActorContext
 
   var getAvailableNodeAddressesFunc: () => Array[Address] = () => Array.empty
 
+  /**
+    * Members eligible for general round-robin placement.
+    *
+    * Separate from [[getAvailableNodeAddressesFunc]] because that one must stay
+    * complete for pinned placement, while round-robin has to skip nodes rented for
+    * a single offloaded operator. Defaults to the full set, which is correct when
+    * no dedicated nodes exist.
+    */
+  var getGeneralPlacementAddressesFunc: () => Array[Address] = () => getAvailableNodeAddressesFunc()
+
   def getClusterNodeAddresses: Array[Address] = {
     getAvailableNodeAddressesFunc()
+  }
+
+  def getGeneralPlacementNodeAddresses: Array[Address] = {
+    getGeneralPlacementAddressesFunc()
   }
 
   def actorOf(props: Props): ActorRef = {

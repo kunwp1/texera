@@ -332,6 +332,50 @@ export const mockHuggingFaceSchema: OperatorSchema = {
   operatorVersion: "hf1",
 };
 
+/**
+ * Mirrors how OperatorMetadataGenerator emits a nested config object: the property
+ * itself is a bare `$ref` into `definitions`, with no `type` of its own.
+ *
+ * Hand-written mocks had only ever used inlined properties, so nothing here
+ * exercised the `$ref` path that WorkflowUtilService.getNewOperatorPredicate feeds
+ * to Ajv. Keep this schema shaped like real generator output -- if it drifts back
+ * to an inlined object it stops guarding anything.
+ */
+export const mockNestedConfigSchema: OperatorSchema = {
+  operatorType: "NestedConfigOp",
+  additionalMetadata: {
+    userFriendlyName: "Operator With Nested Config",
+    operatorDescription: "Operator carrying a nested config object emitted as a $ref",
+    operatorGroupName: "Analysis",
+    inputPorts: [{}],
+    outputPorts: [{}],
+  },
+  jsonSchema: {
+    properties: {
+      attribute: { type: "string", title: "attribute" },
+      nestedConfig: {
+        $ref: "#/definitions/NestedConfig",
+        title: "Nested Config",
+      },
+    },
+    required: ["attribute"],
+    type: "object",
+    definitions: {
+      NestedConfig: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          enabled: { type: "boolean", title: "Enabled" },
+          instanceType: { type: "string", title: "Instance Type" },
+          safetyFactor: { type: "number", title: "Safety Factor" },
+        },
+        required: ["enabled"],
+      },
+    },
+  },
+  operatorVersion: "nested1",
+};
+
 export const mockOperatorSchemaList: ReadonlyArray<OperatorSchema> = [
   mockScanSourceSchema,
   mockFileSourceSchema,
@@ -346,6 +390,7 @@ export const mockOperatorSchemaList: ReadonlyArray<OperatorSchema> = [
   mockPythonUDFSchema,
   mockJavaUDFSchema,
   mockHuggingFaceSchema,
+  mockNestedConfigSchema,
 ];
 
 export const mockOperatorGroup: ReadonlyArray<GroupInfo> = [
