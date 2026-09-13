@@ -16,7 +16,7 @@
 // under the License.
 
 addSbtPlugin("org.scalameta" % "sbt-scalafmt" % "2.4.2")
-addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.7")
+addSbtPlugin("ch.epfl.scala" % "sbt-scalafix" % "0.14.8")
 // Coverage instrumentation; emits jacoco.xml that Codecov consumes.
 // JaCoCo (vs scoverage) works on JVM bytecode, so it does not need a
 // per-Scala-version compiler plugin — scalac-scoverage-plugin only
@@ -40,5 +40,5 @@ libraryDependencies ++= Seq(
   // PostgresDatabase.loadForeignKeys can't read (it looks up lowercase key_seq),
   // breaking JOOQ code generation. Fixed only in jOOQ 3.20+ (jOOQ/jOOQ#17873); jOOQ
   // is capped at 3.19.36 here (the last Java-17 release), so keep this driver pinned.
-  "org.postgresql" % "postgresql" % "42.7.4"
+  "org.postgresql" % "postgresql" % "42.7.13"
 )
